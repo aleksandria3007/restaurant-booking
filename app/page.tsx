@@ -1,32 +1,116 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 // Тимчасові дані для відображення (пізніше ми замінимо це на запит до MongoDB)
 const DUMMY_TABLES = [
-  { id: '1', name: 'Гасова лямпа', type: 'Кафе', location: 'Центр', capacity: 2, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Мазох-cafe' },
-  { id: '2', name: 'Реберня під Арсеналом', type: 'Ресторан', location: 'Центр', capacity: 4, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Реберня' },
-  { id: '3', name: 'Криївка', type: 'Ресторан', location: 'Площа Ринок', capacity: 6, isAvailable: false, img: 'https://via.placeholder.com/400x250?text=Криївка' },
+  { 
+    id: '1', 
+    name: 'Гасова лямпа', 
+    type: 'Кафе', 
+    location: 'Центр', 
+    capacity: 2, 
+    isAvailable: true, 
+    img: '/gasova-lyampa.jpg' // Шлях відносно папки public
+  },
+  { 
+    id: '2', 
+    name: 'Реберня під Арсеналом', 
+    type: 'Ресторан', 
+    location: 'Центр', 
+    capacity: 4, 
+    isAvailable: true, 
+    img: '/rebernya.jpg' 
+  },
+  { 
+    id: '3', 
+    name: 'Криївка', 
+    type: 'Ресторан', 
+    location: 'Площа Ринок', 
+    capacity: 6, 
+    isAvailable: false, 
+    img: '/kryivka.jpg' 
+  },
 ];
 
-export default function BookingPage() {
-  // Стани для форми підбору столика
-  const [persons, setPersons] = useState("2");
-  const [date, setDate] = useState("2026-04-27");
-  const [time, setTime] = useState("17:00");
+// Функція генерації часу кожні 15 хвилин з 10:00 до 22:00
+const generateTimes = () => {
+  const times = [];
+  for (let h = 10; h <= 22; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      if (h === 22 && m > 0) break; // Останній слот рівно о 22:00
+      const hour = String(h).padStart(2, '0');
+      const minute = String(m).padStart(2, '0');
+      times.push(`${hour}:${minute}`);
+    }
+  }
+  return times;
+};
 
-  // НОВІ СТАНИ: для міста та пошуку по назві
+const ALL_TIMES = generateTimes();
+
+export default function BookingPage() {
+  const [persons, setPersons] = useState("2");
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState("");
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  
   const [city, setCity] = useState("Львів");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Обробник пошуку столика (нижня форма)
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    alert(`Шукаємо столик на ${persons} людей, дата: ${date}, час: ${time}, місто: ${city}`);
-    // Тут буде логіка фільтрації бази даних
+  // Функція для отримання сьогоднішньої дати у форматі YYYY-MM-DD
+  const getTodayString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
-  // Обробник пошуку за назвою (форма в шапці)
+  // Встановлюємо сьогоднішню дату при першому завантаженні
+  useEffect(() => {
+    setDate(getTodayString());
+  }, []);
+
+  // Фільтрація доступного часу кожні 15 хвилин залежно від поточної години/хвилини
+  useEffect(() => {
+    if (!date) return;
+
+    const today = getTodayString();
+    let validTimes = ALL_TIMES;
+
+    // Якщо обрано сьогодні, відфільтровуємо години та хвилини, які вже минули
+    if (date === today) {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+
+      validTimes = ALL_TIMES.filter(t => {
+        const [hours, minutes] = t.split(':').map(Number);
+        // Залишаємо тільки ті слоти, де година більша, або якщо година та сама — хвилини більші
+        return hours > currentHours || (hours === currentHours && minutes > currentMinutes);
+      });
+    }
+
+    setAvailableTimes(validTimes);
+
+    // Автоматично обираємо перший доступний час зі списку
+    if (validTimes.length > 0 && !validTimes.includes(time)) {
+      setTime(validTimes[0]);
+    } else if (validTimes.length === 0) {
+      setTime(""); 
+    }
+  }, [date, time]);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!time) {
+      alert("На обрану дату більше немає вільного часу для бронювання.");
+      return;
+    }
+    alert(`Шукаємо столик на ${persons} людей, дата: ${date}, час: ${time}, місто: ${city}`);
+  };
+
   const handleTextSearch = (e: React.FormEvent) => {
     e.preventDefault();
     alert(`Шукаємо заклад "${searchQuery}" у місті ${city}`);
@@ -39,11 +123,9 @@ export default function BookingPage() {
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           
-          {/* Ліва частина шапки: Логотип + Місто + Пошук */}
           <div className="flex items-center gap-4 md:gap-6 flex-1">
             <div className="text-2xl font-bold text-amber-700 tracking-tighter">Reserra</div>
             
-            {/* Вибір міста (Селект) */}
             <div className="relative hidden sm:block z-10">
               <select 
                 value={city}
@@ -54,13 +136,11 @@ export default function BookingPage() {
                 <option value="Запоріжжя">Запоріжжя</option>
                 <option value="Київ">Київ</option>
               </select>
-              {/* Кастомна стрілочка для селекта */}
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
                 <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
               </div>
             </div>
 
-            {/* Рядок текстового пошуку */}
             <form onSubmit={handleTextSearch} className="hidden md:flex relative w-full max-w-sm">
               <input 
                 type="text" 
@@ -75,7 +155,6 @@ export default function BookingPage() {
             </form>
           </div>
 
-          {/* Права частина шапки: Навігація + Авторизація */}
           <div className="flex items-center gap-6 pl-4">
             <nav className="hidden lg:flex gap-6 font-medium text-sm text-gray-600">
               <a href="#" className="text-amber-700 border-b-2 border-amber-700 pb-1 whitespace-nowrap">Заклади</a>
@@ -118,6 +197,7 @@ export default function BookingPage() {
               <input 
                 type="date" 
                 value={date}
+                min={getTodayString()}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500"
               />
@@ -128,17 +208,25 @@ export default function BookingPage() {
               <select 
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500"
+                disabled={availableTimes.length === 0}
+                className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-100 disabled:text-gray-400"
               >
-                <option value="17:00">17:00</option>
-                <option value="18:00">18:00</option>
-                <option value="19:00">19:00</option>
-                <option value="20:00">20:00</option>
+                {availableTimes.length > 0 ? (
+                  availableTimes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))
+                ) : (
+                  <option value="">Немає часу</option>
+                )}
               </select>
             </div>
 
             <div className="w-full md:w-auto">
-              <button type="submit" className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-8 rounded h-[42px] transition-colors">
+              <button 
+                type="submit" 
+                disabled={availableTimes.length === 0}
+                className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-8 rounded h-[42px] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+              >
                 Підібрати
               </button>
             </div>
