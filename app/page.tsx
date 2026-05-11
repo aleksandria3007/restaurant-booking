@@ -1,60 +1,33 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 
-// Тимчасові дані для відображення (пізніше ми замінимо це на запит до MongoDB)
+// Тимчасові дані з описами для сторінки деталей
 const DUMMY_TABLES = [
-  { 
-    id: '1', 
-    name: 'Гасова лямпа', 
-    type: 'Кафе', 
-    location: 'Центр', 
-    capacity: 2, 
-    isAvailable: true, 
-    img: '/gasova-lyampa.jpg' // Шлях відносно папки public
-  },
-  { 
-    id: '2', 
-    name: 'Реберня під Арсеналом', 
-    type: 'Ресторан', 
-    location: 'Центр', 
-    capacity: 4, 
-    isAvailable: true, 
-    img: '/rebernya.jpg' 
-  },
-  { 
-    id: '3', 
-    name: 'Криївка', 
-    type: 'Ресторан', 
-    location: 'Площа Ринок', 
-    capacity: 6, 
-    isAvailable: false, 
-    img: '/kryivka.jpg' 
-  },
+  { id: '1', name: 'Гасова лямпа', type: 'Кафе', location: 'вул. Вірменська, 20', city: 'Львів', description: 'Перша в Україні музей-ресторація. Атмосфера старого Львова та величезна колекція лямп.', capacity: 2, isAvailable: true, img: '/gasova-lyampa.jpg' },
+  { id: '2', name: 'Реберня під Арсеналом', type: 'Ресторан', location: 'вул. Підвальна, 5', city: 'Львів', description: 'Найвідоміші ребра Львова, що готуються на відкритому вогні.', capacity: 4, isAvailable: true, img: '/rebernya.jpg' },
+  { id: '3', name: 'Криївка', type: 'Ресторан', location: 'Площа Ринок, 14', city: 'Львів', description: 'Останній сховок вояків УПА, де панує особливий патріотичний дух.', capacity: 6, isAvailable: false, img: '/kryivka.jpg' },
+  { id: '4', name: 'ПЕРША ЛЬВІВСЬКА ГРИЛЬОВА РЕСТОРАЦІЯ М\'ЯСА ТА СПРАВЕДЛИВОСТІ', type: 'Ресторан', location: 'вул. Валова, 20', city: 'Львів', description: 'Заклад про львівського ката. М’ясо на грилі та середньовічна атмосфера.', capacity: 4, isAvailable: true, img: '/meat-and-justice.jpg' },
+  { id: '5', name: 'GRAND CAFE LEOPOLIS', type: 'Кафе', location: 'пл. Ринок, 1', city: 'Львів', description: 'Кафе у Ратуші з найкращим видом та десертами.', capacity: 2, isAvailable: true, img: '/grand-cafe.jpeg' },
+  { id: '6', name: 'ЛЬВІВСЬКА КОПАЛЬНЯ КАВИ', type: 'Кав\'ярня', location: 'пл. Ринок, 10', city: 'Львів', description: 'Тут каву видобувають прямо з шахти під площею Ринок.', capacity: 4, isAvailable: true, img: '/kopalnya-kavy.jpg' },
+  { id: '7', name: 'MARINAD MEAT BAR', type: 'Бар', location: 'вул. Личаківська, 135', city: 'Львів', description: 'Сучасний м’ясний бар з авторськими коктейлями.', capacity: 6, isAvailable: true, img: '/marinad-meat-bar.jpg' },
+  { id: '10', name: 'ДЗИҐА', type: 'Кафе', location: 'вул. Вірменська, 35', city: 'Львів', description: 'Мистецьке серце Львова. Джаз, виставки та смачна кухня.', capacity: 4, isAvailable: true, img: '/dzyga.jpg' },
+  { id: '11', name: 'НАЙДОРОЖЧА РЕСТОРАЦІЯ ГАЛИЧИНИ', type: 'Ресторан', location: 'пл. Ринок, 14/8', city: 'Львів', description: 'Масонська ложа з таємним входом та особливими цінами.', capacity: 2, isAvailable: true, img: '/expensive-rest.jpg' },
+  { id: '12', name: 'ДОБРИЙ ДРУГ', type: 'Паб', location: 'вул. Лесі Українки, 19', city: 'Львів', description: 'Затишний паб з крафтовим пивом та піцою.', capacity: 6, isAvailable: true, img: '/dobryi-drug.jpg' },
+  { id: '13', name: 'ГРУШЕВСЬКИЙ', type: 'Ресторан', location: 'пр-т Шевченка, 28', city: 'Львів', description: 'Кіно-джаз ресторан у самому центрі міста.', capacity: 4, isAvailable: true, img: '/hrushevskyi.jpg' },
+  { id: '14', name: 'Bullart', type: 'Ресторан', location: 'пр-т Маяковського, 6', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Bullart' },
+  { id: '15', name: 'Пузата Хата', type: 'Кафе', location: 'Хрещатик, 15', city: 'Київ', description: 'Традиційна українська кухня у швидкому форматі.', capacity: 6, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Пузата+Хата' }
 ];
 
-// Дані для фільтрів (як на скріншоті)
 const PLACE_TYPES = [
-  { label: 'Бар', count: 8 },
-  { label: 'Готельно-ресторанний комплекс', count: 2 },
+  { label: 'Бар', count: 1 },
   { label: "Кав'ярня", count: 1 },
-  { label: 'Кафе', count: 5 },
-  { label: 'Паб', count: 4 },
-  { label: 'Ресторан', count: 27 },
+  { label: 'Кафе', count: 4 },
+  { label: 'Паб', count: 1 },
+  { label: 'Ресторан', count: 6 },
 ];
 
-const CUISINES = [
-  { label: 'Авторська', count: 24 },
-  { label: 'Азіатська', count: 1 },
-  { label: 'Американська', count: 8 },
-  { label: 'Бургери', count: 5 },
-  { label: 'Домашня', count: 1 },
-  { label: 'Єврейська', count: 5 },
-  { label: 'Європейська', count: 22 },
-  { label: 'Іспанська', count: 1 },
-];
-
-// Функція генерації часу кожні 15 хвилин з 10:00 до 22:00
 const generateTimes = () => {
   const times = [];
   for (let h = 10; h <= 22; h++) {
@@ -70,303 +43,193 @@ const generateTimes = () => {
 
 const ALL_TIMES = generateTimes();
 
-export default function BookingPage() {
+export default function HomePage() {
   const [persons, setPersons] = useState("2");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
-  
   const [city, setCity] = useState("Львів");
   const [searchQuery, setSearchQuery] = useState("");
-
-  // НОВІ СТАНИ ДЛЯ ФІЛЬТРІВ:
-  const [hasDiscount, setHasDiscount] = useState(false);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [selectedCuisines, setSelectedCuisines] = useState<string[]>([]);
 
-  // Логіка перемикання чекбоксів для типів
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTableForBooking, setSelectedTableForBooking] = useState<any>(null);
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [duration, setDuration] = useState("2");
+
   const toggleType = (label: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(label) ? prev.filter(t => t !== label) : [...prev, label]
-    );
+    setSelectedTypes(prev => prev.includes(label) ? prev.filter(t => t !== label) : [...prev, label]);
   };
 
-  // Логіка перемикання чекбоксів для кухні
-  const toggleCuisine = (label: string) => {
-    setSelectedCuisines(prev => 
-      prev.includes(label) ? prev.filter(c => c !== label) : [...prev, label]
-    );
-  };
-
-  // Очистити всі фільтри
-  const resetFilters = () => {
-    setHasDiscount(false);
-    setSelectedTypes([]);
-    setSelectedCuisines([]);
-  };
-
-  // Отримання сьогоднішньої дати
   const getTodayString = () => {
     const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
 
-  useEffect(() => {
-    setDate(getTodayString());
-  }, []);
+  useEffect(() => { setDate(getTodayString()); }, []);
 
   useEffect(() => {
     if (!date) return;
     const today = getTodayString();
     let validTimes = ALL_TIMES;
-
     if (date === today) {
       const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-
       validTimes = ALL_TIMES.filter(t => {
-        const [hours, minutes] = t.split(':').map(Number);
-        return hours > currentHours || (hours === currentHours && minutes > currentMinutes);
+        const [h, m] = t.split(':').map(Number);
+        return h > now.getHours() || (h === now.getHours() && m > now.getMinutes());
       });
     }
-
     setAvailableTimes(validTimes);
-
-    if (validTimes.length > 0 && !validTimes.includes(time)) {
-      setTime(validTimes[0]);
-    } else if (validTimes.length === 0) {
-      setTime(""); 
-    }
+    if (validTimes.length > 0 && !validTimes.includes(time)) setTime(validTimes[0]);
   }, [date, time]);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const filteredTables = DUMMY_TABLES.filter(table => {
+    const matchCity = table.city === city;
+    const matchType = selectedTypes.length === 0 || selectedTypes.includes(table.type);
+    const matchSearch = table.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCity && matchType && matchSearch;
+  });
+
+  const handleBookingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!time) {
-      alert("На обрану дату більше немає вільного часу для бронювання.");
-      return;
-    }
-    alert(`Підбір: ${persons} людей, ${date}, ${time}. Фільтри: ${selectedTypes.length} типів, ${selectedCuisines.length} кухонь.`);
+    alert(`Бронювання успішне для ${clientName} у ${selectedTableForBooking.name}`);
+    setIsModalOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-12">
-      
-      {/* HEADER (Шапка) */}
+    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-12 relative">
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4 md:gap-6 flex-1">
             <div className="text-2xl font-bold text-amber-700 tracking-tighter">Reserra</div>
-            
-            <div className="relative hidden sm:block z-10">
-              <select 
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="appearance-none bg-white border border-gray-300 text-gray-700 py-1.5 pl-3 pr-8 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 text-sm font-medium cursor-pointer"
-              >
-                <option value="Львів">Львів</option>
-                <option value="Запоріжжя">Запоріжжя</option>
-                <option value="Київ">Київ</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500">
-                <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
-              </div>
-            </div>
-
-            <form onSubmit={(e) => e.preventDefault()} className="hidden md:flex relative w-full max-w-sm">
-              <input 
-                type="text" 
-                placeholder="Пошук..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full border border-gray-300 rounded-l py-1.5 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500 focus:border-amber-500 shadow-sm"
-              />
-              <button type="submit" className="bg-gray-50 border border-l-0 border-gray-300 rounded-r px-3 flex items-center justify-center hover:bg-gray-100 transition-colors shadow-sm">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              </button>
-            </form>
+            <select value={city} onChange={(e) => { setCity(e.target.value); setSearchQuery(""); }} className="bg-white border rounded p-1.5 text-sm cursor-pointer">
+              <option value="Львів">Львів</option>
+              <option value="Запоріжжя">Запоріжжя</option>
+              <option value="Київ">Київ</option>
+            </select>
+            <input type="text" placeholder="Пошук..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="hidden md:block border rounded py-1.5 px-3 text-sm max-w-sm w-full" />
           </div>
-
-          <div className="flex items-center gap-6 pl-4">
-            <nav className="hidden lg:flex gap-6 font-medium text-sm text-gray-600">
-              <a href="#" className="text-amber-700 border-b-2 border-amber-700 pb-1 whitespace-nowrap">Заклади</a>
-              <a href="#" className="hover:text-amber-700 transition-colors whitespace-nowrap">Банкетні зали</a>
-              <a href="#" className="hover:text-amber-700 transition-colors whitespace-nowrap">Новини</a>
-            </nav>
-            
-            <div className="flex items-center gap-4">
-              <span className="text-sm font-semibold hidden xl:block whitespace-nowrap">(097) 805 54 41</span>
-              <button className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded text-sm transition-colors whitespace-nowrap">
-                Увійти
-              </button>
-            </div>
-          </div>
+          <button className="bg-amber-600 text-white px-4 py-2 rounded text-sm font-bold ml-4">Увійти</button>
         </div>
       </header>
 
-      {/* SEARCH BAR (Панель підбору столика) */}
       <div className="bg-gray-800 py-6">
-        <div className="max-w-7xl mx-auto px-4">
-          <form onSubmit={handleSearch} className="bg-white p-4 rounded-lg shadow-lg flex flex-col md:flex-row items-end gap-4">
-            <div className="flex-1 w-full">
-              <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase">Для:</label>
-              <select value={persons} onChange={(e) => setPersons(e.target.value)} className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500">
-                <option value="2">2-ох людей</option>
-                <option value="4">4-ох людей</option>
-                <option value="6">6-ти людей</option>
-                <option value="10">10-ти людей</option>
-              </select>
-            </div>
-
-            <div className="flex-1 w-full">
-              <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase">Дата:</label>
-              <input type="date" value={date} min={getTodayString()} onChange={(e) => setDate(e.target.value)} className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500" />
-            </div>
-
-            <div className="flex-1 w-full">
-              <label className="block text-xs text-gray-500 font-semibold mb-1 uppercase">Час:</label>
-              <select value={time} onChange={(e) => setTime(e.target.value)} disabled={availableTimes.length === 0} className="w-full border-gray-300 border rounded p-2 focus:ring-amber-500 focus:border-amber-500 disabled:bg-gray-100 disabled:text-gray-400">
-                {availableTimes.length > 0 ? (
-                  availableTimes.map((t) => <option key={t} value={t}>{t}</option>)
-                ) : (
-                  <option value="">Немає часу</option>
-                )}
-              </select>
-            </div>
-
-            <div className="w-full md:w-auto">
-              <button type="submit" disabled={availableTimes.length === 0} className="w-full bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-8 rounded h-[42px] transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">
-                Підібрати
-              </button>
-            </div>
-          </form>
+        <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="bg-white p-2 rounded-lg flex-1">
+            <label className="text-[10px] uppercase font-bold text-gray-400 block ml-1">Для</label>
+            <select value={persons} onChange={(e) => setPersons(e.target.value)} className="w-full p-1 focus:outline-none">
+              <option value="2">2-ох людей</option>
+              <option value="4">4-ох людей</option>
+              <option value="6">6-ти людей</option>
+            </select>
+          </div>
+          <div className="bg-white p-2 rounded-lg flex-1">
+            <label className="text-[10px] uppercase font-bold text-gray-400 block ml-1">Дата</label>
+            <input type="date" value={date} min={getTodayString()} onChange={(e) => setDate(e.target.value)} className="w-full p-1 focus:outline-none" />
+          </div>
+          <div className="bg-white p-2 rounded-lg flex-1">
+            <label className="text-[10px] uppercase font-bold text-gray-400 block ml-1">Час</label>
+            <select value={time} onChange={(e) => setTime(e.target.value)} disabled={availableTimes.length === 0} className="w-full p-1 focus:outline-none disabled:text-gray-300">
+              {availableTimes.length > 0 ? availableTimes.map(t => <option key={t} value={t}>{t}</option>) : <option>Немає часу</option>}
+            </select>
+          </div>
+          <button className="bg-amber-600 text-white font-bold py-3 rounded-lg hover:bg-amber-700 transition-colors uppercase text-sm">Підібрати</button>
         </div>
       </div>
 
-      {/* ГОЛОВНИЙ КОНТЕНТ (Сайдбар + Сітка закладів) */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        <div className="flex flex-col md:flex-row gap-8">
-          
-          {/* ЛІВА КОЛОНКА: САЙДБАР (Фільтри) */}
-          <aside className="w-full md:w-64 flex-shrink-0">
-            {/* Заголовок і кнопка скидання */}
-            <div className="flex items-center gap-2 mb-4">
-              <h2 className="font-bold text-lg uppercase tracking-wide">Параметри:</h2>
-              <button 
-                onClick={resetFilters} 
-                className="p-1 border rounded bg-white hover:bg-gray-100 transition-colors shadow-sm" 
-                title="Очистити фільтри"
-              >
-                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-              </button>
-            </div>
-
-            {/* Контейнер фільтрів */}
-            <div className="bg-white border border-gray-200 rounded text-sm shadow-sm">
-              
-              {/* 1. Знижка за резерв */}
-              <div className="p-4 border-b border-gray-200 flex items-center gap-3">
-                <input 
-                  type="checkbox" 
-                  id="discount" 
-                  checked={hasDiscount} 
-                  onChange={(e) => setHasDiscount(e.target.checked)} 
-                  className="w-4 h-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded cursor-pointer" 
-                />
-                <label htmlFor="discount" className="cursor-pointer text-gray-700 select-none">Знижка за резерв</label>
-              </div>
-
-              {/* 2. Тип закладу */}
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="text-base text-gray-800 mb-3">Тип закладу:</h3>
-                {/* Кастомний скролбар через Tailwind-варіанти */}
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full">
-                  {PLACE_TYPES.map(type => (
-                    <div key={type.label} className="flex items-start gap-3">
-                      <input 
-                        type="checkbox" 
-                        id={`type-${type.label}`} 
-                        checked={selectedTypes.includes(type.label)} 
-                        onChange={() => toggleType(type.label)} 
-                        className="w-4 h-4 mt-0.5 text-amber-600 focus:ring-amber-500 border-gray-300 rounded cursor-pointer" 
-                      />
-                      <label htmlFor={`type-${type.label}`} className="cursor-pointer text-gray-700 flex-1 select-none leading-snug">
-                        {type.label} <span className="text-gray-400 text-xs">({type.count})</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3. Кухня */}
-              <div className="p-4">
-                <h3 className="text-base text-gray-800 mb-3">Кухня:</h3>
-                <div className="max-h-48 overflow-y-auto space-y-2 pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-gray-100 [&::-webkit-scrollbar-thumb]:bg-gray-400 [&::-webkit-scrollbar-thumb]:rounded-full">
-                  {CUISINES.map(cuisine => (
-                    <div key={cuisine.label} className="flex items-start gap-3">
-                      <input 
-                        type="checkbox" 
-                        id={`cuisine-${cuisine.label}`} 
-                        checked={selectedCuisines.includes(cuisine.label)} 
-                        onChange={() => toggleCuisine(cuisine.label)} 
-                        className="w-4 h-4 mt-0.5 text-amber-600 focus:ring-amber-500 border-gray-300 rounded cursor-pointer" 
-                      />
-                      <label htmlFor={`cuisine-${cuisine.label}`} className="cursor-pointer text-gray-700 flex-1 select-none leading-snug">
-                        {cuisine.label} <span className="text-gray-400 text-xs">({cuisine.count})</span>
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </aside>
-
-          {/* ПРАВА КОЛОНКА: СІТКА ЗАКЛАДІВ */}
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold mb-6">Каталог закладів {city !== "Львів" ? city : "Львова"}</h1>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-              {DUMMY_TABLES.map((table) => (
-                <div key={table.id} className="bg-white border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                  <div className="h-48 bg-gray-200 overflow-hidden relative">
-                    <img src={table.img} alt={table.name} className="w-full h-full object-cover" />
-                    {!table.isAvailable && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="text-white font-bold text-lg bg-red-600 px-4 py-1 rounded">Немає місць</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="text-xs text-gray-500 mb-1">{table.type}</div>
-                    <h3 className="text-xl font-bold mb-2 truncate">{table.name}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-4">
-                      <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                      <span className="truncate">{table.location}</span>
-                    </div>
-                    
-                    <button 
-                      disabled={!table.isAvailable}
-                      className={`w-full py-2 rounded font-semibold transition-colors ${
-                        table.isAvailable 
-                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200' 
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {table.isAvailable ? 'Забронювати стіл' : 'Зайнято'}
-                    </button>
-                  </div>
-                </div>
+      <main className="max-w-7xl mx-auto px-4 py-8 flex flex-col md:flex-row gap-8">
+        <aside className="w-full md:w-64 flex-shrink-0">
+          <h2 className="font-bold text-lg uppercase mb-4">Параметри:</h2>
+          <div className="bg-white border rounded shadow-sm p-4">
+            <h3 className="font-bold mb-3 border-b pb-2">Тип закладу:</h3>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
+              {PLACE_TYPES.map(type => (
+                <label key={type.label} className="flex items-center gap-3 cursor-pointer hover:text-amber-700 transition-colors">
+                  <input type="checkbox" checked={selectedTypes.includes(type.label)} onChange={() => toggleType(type.label)} className="w-4 h-4 accent-amber-600" />
+                  <span className="text-sm">{type.label} <span className="text-gray-400">({type.count})</span></span>
+                </label>
               ))}
             </div>
           </div>
+        </aside>
 
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold mb-6">Каталог закладів</h1>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredTables.map((table) => (
+              <div key={table.id} className="bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group border-gray-100">
+                <Link href={`/booking/${table.id}`} className="flex-1">
+                  <div className="h-48 overflow-hidden relative">
+                    <img src={table.img} alt={table.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                    {!table.isAvailable && <div className="absolute inset-0 bg-black/60 flex items-center justify-center font-bold text-white uppercase tracking-widest">Зайнято</div>}
+                  </div>
+                  <div className="p-4">
+                    <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{table.type}</span>
+                    <h3 className="text-lg font-bold mb-1 leading-tight group-hover:text-amber-700 transition-colors">{table.name}</h3>
+                    <div className="flex items-start gap-1 text-xs text-gray-500 font-medium">
+                      <svg className="w-3.5 h-3.5 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                      {table.location}
+                    </div>
+                  </div>
+                </Link>
+                <div className="p-4 pt-0">
+                  <button onClick={() => { setSelectedTableForBooking(table); setIsModalOpen(true); }} disabled={!table.isAvailable} className="w-full py-2.5 bg-amber-50 text-amber-800 rounded-lg font-bold hover:bg-amber-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400">
+                    Забронювати стіл
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </main>
 
+      {isModalOpen && selectedTableForBooking && (
+        <div className="fixed inset-0 bg-black/70 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b flex justify-between items-center bg-gray-50">
+              <div>
+                <h2 className="text-xl font-bold">Бронювання</h2>
+                <p className="text-xs text-gray-500 font-medium">{selectedTableForBooking.name}</p>
+              </div>
+              <button onClick={() => setIsModalOpen(false)} className="p-1 hover:bg-gray-200 rounded-full transition-colors text-gray-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+              </button>
+            </div>
+            <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Ваше ім'я</label>
+                <input required type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full border rounded-lg p-2.5 focus:ring-2 ring-amber-500 focus:outline-none" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Телефон</label>
+                <input required type="tel" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} className="w-full border rounded-lg p-2.5 focus:ring-2 ring-amber-500 focus:outline-none" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Дата</label>
+                  <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-400 uppercase ml-1">Час</label>
+                  <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm">
+                    {availableTimes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Тривалість (год)</label>
+                <select value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm">
+                  {[1,2,3,4].map(v => <option key={v} value={v}>{v} {v === 1 ? 'година' : 'години'}</option>)}
+                </select>
+              </div>
+              <button type="submit" className="w-full py-3.5 bg-amber-600 text-white rounded-xl font-bold shadow-lg shadow-amber-600/30 hover:bg-amber-700 transition-all uppercase text-sm tracking-widest mt-4">
+                Підтвердити резерв
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
