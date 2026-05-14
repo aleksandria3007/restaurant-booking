@@ -5,6 +5,7 @@ import Link from 'next/link';
 
 // Тимчасові дані з описами для сторінки деталей
 const DUMMY_TABLES = [
+  //Львів
   { id: '1', name: 'Гасова лямпа', type: 'Кафе', location: 'вул. Вірменська, 20', city: 'Львів', description: 'Перша в Україні музей-ресторація. Атмосфера старого Львова та величезна колекція лямп.', capacity: 2, isAvailable: true, img: '/gasova-lyampa.jpg' },
   { id: '2', name: 'Реберня під Арсеналом', type: 'Ресторан', location: 'вул. Підвальна, 5', city: 'Львів', description: 'Найвідоміші ребра Львова, що готуються на відкритому вогні.', capacity: 4, isAvailable: true, img: '/rebernya.jpg' },
   { id: '3', name: 'Криївка', type: 'Ресторан', location: 'Площа Ринок, 14', city: 'Львів', description: 'Останній сховок вояків УПА, де панує особливий патріотичний дух.', capacity: 6, isAvailable: false, img: '/kryivka.jpg' },
@@ -16,8 +17,15 @@ const DUMMY_TABLES = [
   { id: '11', name: 'НАЙДОРОЖЧА РЕСТОРАЦІЯ ГАЛИЧИНИ', type: 'Ресторан', location: 'пл. Ринок, 14/8', city: 'Львів', description: 'Масонська ложа з таємним входом та особливими цінами.', capacity: 2, isAvailable: true, img: '/expensive-rest.jpg' },
   { id: '12', name: 'ДОБРИЙ ДРУГ', type: 'Паб', location: 'вул. Лесі Українки, 19', city: 'Львів', description: 'Затишний паб з крафтовим пивом та піцою.', capacity: 6, isAvailable: true, img: '/dobryi-drug.jpg' },
   { id: '13', name: 'ГРУШЕВСЬКИЙ', type: 'Ресторан', location: 'пр-т Шевченка, 28', city: 'Львів', description: 'Кіно-джаз ресторан у самому центрі міста.', capacity: 4, isAvailable: true, img: '/hrushevskyi.jpg' },
+//Запоріжжя
   { id: '14', name: 'Bullart', type: 'Ресторан', location: 'пр-т Маяковського, 6', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Bullart' },
-  { id: '15', name: 'Пузата Хата', type: 'Кафе', location: 'Хрещатик, 15', city: 'Київ', description: 'Традиційна українська кухня у швидкому форматі.', capacity: 6, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Пузата+Хата' }
+  { id: '15', name: 'Шелест', type: 'Ресторан', location: 'бульвар Шевченка, 16', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/shelest.jpg' },
+  { id: '16', name: 'Бергамот', type: 'Ресторан', location: 'вулиця Перемоги, 59', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/bergamot.jpg' },
+  { id: '17', name: 'Джобс кафе', type: 'Кафе', location: 'проспект Соборний, 147', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/jobs-cafe.jpg' },
+  { id: '18', name: 'Шелест', type: 'Ресторан', location: 'бульвар Шевченка, 16', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/shelest.jpg' },
+  { id: '19', name: 'Шелест', type: 'Ресторан', location: 'бульвар Шевченка, 16', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/shelest.jpg' },
+  
+  { id: '20', name: 'Пузата Хата', type: 'Кафе', location: 'Хрещатик, 15', city: 'Київ', description: 'Традиційна українська кухня у швидкому форматі.', capacity: 6, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Пузата+Хата' }
 ];
 
 const PLACE_TYPES = [
