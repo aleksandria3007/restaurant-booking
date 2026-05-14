@@ -22,8 +22,8 @@ const DUMMY_TABLES = [
   { id: '15', name: 'Шелест', type: 'Ресторан', location: 'бульвар Шевченка, 16', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/shelest.jpg' },
   { id: '16', name: 'Бергамот', type: 'Ресторан', location: 'вулиця Перемоги, 59', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/bergamot.jpg' },
   { id: '17', name: 'Джобс кафе', type: 'Кафе', location: 'проспект Соборний, 147', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/jobs-cafe.jpg' },
-  { id: '18', name: 'Тепло', type: 'Кафе', location: 'проспект Соборний, 166', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/teplo.jpeg' },
-  { id: '19', name: 'Вілла Олива', type: 'Ресторан', location: 'вулиця Перемоги, 37', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/villa-oliva.jpeg' },
+  { id: '18', name: 'Тепло', type: 'Кафе', location: 'проспект Соборний, 166', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/teplo.jpg' },
+  { id: '19', name: 'Вілла Олива', type: 'Ресторан', location: 'вулиця Перемоги, 37', city: 'Запоріжжя', description: 'Найкращі стейки у Запоріжжі.', capacity: 4, isAvailable: true, img: '/villa-oliva.jpg' },
   
   { id: '20', name: 'Пузата Хата', type: 'Кафе', location: 'Хрещатик, 15', city: 'Київ', description: 'Традиційна українська кухня у швидкому форматі.', capacity: 6, isAvailable: true, img: 'https://via.placeholder.com/400x250?text=Пузата+Хата' }
 ];
