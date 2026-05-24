@@ -1,36 +1,38 @@
 import { NextResponse } from 'next/server';
-
-// Коли ви повністю підключите MongoDB, розкоментуйте ці рядки для роботи з базою:
-// import { connectToDatabase } from '@/lib/mongodb'; 
-// import Table from '@/models/Table';
+import dbConnect from '@/lib/dbConnect';
+import Table from '@/models/Table';
 
 export async function POST(request: Request) {
   try {
-    // Зчитуємо дані, які прислав датчик з Wokwi або командного рядка
+    // 1. Підключаємося до MongoDB Atlas
+    await dbConnect();
+
+    // 2. Зчитуємо дані від Wokwi
     const body = await request.json();
     const { tableId, isOccupied } = body;
 
-    // Виводимо лог у консоль сервера Vercel для перевірки
-    console.log(`📡 Сигнал від IoT-датчика: Стіл №${tableId} -> ${isOccupied ? 'ЗАЙНЯТИЙ' : 'ВІЛЬНИЙ'}`);
+    // 3. Зберігаємо в базу (оновлюємо або створюємо новий)
+    const updatedTable = await Table.findOneAndUpdate(
+      { number: tableId }, // Шукаємо стіл за номером
+      { 
+        $set: { 
+          number: tableId,
+          isAvailable: !isOccupied // Якщо зайнятий (true) -> доступність (false)
+        } 
+      },
+      { 
+        new: true,     // Повернути оновлений документ
+        upsert: true   // СТВОРИТИ запис, якщо столика №1 ще немає в базі!
+      }
+    );
 
-    // ЛОГІКА ДЛЯ БАЗИ ДАНИХ (Розкоментуйте, коли підключите MongoDB):
-    /*
-    await connectToDatabase();
-    // Якщо стіл зайнятий датчиком (isOccupied: true), то його доступність для бронювання стає false
-    await Table.updateOne({ number: tableId }, { $set: { isAvailable: !isOccupied } });
-    */
-
-    // Повертаємо успішну відповідь (код 200)
     return NextResponse.json({ 
       success: true, 
-      message: `Статус столика №${tableId} оновлено. Зайнятість: ${isOccupied}` 
+      message: `Стіл №${tableId} збережено! Доступність: ${updatedTable.isAvailable}` 
     }, { status: 200 });
 
-  } catch (error) {
-    console.error("Помилка в API маршруті датчика:", error);
-    return NextResponse.json({ 
-      success: false, 
-      error: "Некоректні дані або внутрішня помилка сервера" 
-    }, { status: 500 });
+  } catch (error: any) {
+    console.error("Помилка збереження в MongoDB:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
