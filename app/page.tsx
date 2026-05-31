@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 
 // Тимчасові дані з описами для сторінки деталей
@@ -50,47 +50,123 @@ const generateTimes = () => {
 };
 
 const ALL_TIMES = generateTimes();
+type RestaurantItem = (typeof DUMMY_TABLES)[number];
+type ReservationStatus = "pending" | "confirmed" | "cancelled" | "completed";
+type Reservation = {
+  restaurantId?: string;
+  date?: string;
+  time?: string;
+  status?: ReservationStatus;
+};
+type TableState = {
+  number: number;
+  isAvailable: boolean;
+};
+
+const getTodayString = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const getAvailableTimes = (date: string) => {
+  const today = getTodayString();
+  if (date !== today) return ALL_TIMES;
+
+  const now = new Date();
+  return ALL_TIMES.filter(t => {
+    const [h, m] = t.split(':').map(Number);
+    return h > now.getHours() || (h === now.getHours() && m > now.getMinutes());
+  });
+};
 
 export default function HomePage() {
   const [persons, setPersons] = useState("2");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(() => getTodayString());
   const [time, setTime] = useState("");
-  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [city, setCity] = useState("Львів");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedTableForBooking, setSelectedTableForBooking] = useState<any>(null);
+  const [selectedTableForBooking, setSelectedTableForBooking] = useState<RestaurantItem | null>(null);
   const [clientName, setClientName] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [duration, setDuration] = useState("2");
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [tableStates, setTableStates] = useState<TableState[]>([]);
+  const [syncError, setSyncError] = useState("");
+
+  const loadRealtimeState = useCallback(async () => {
+    try {
+      const [reservationsResponse, tablesResponse] = await Promise.all([
+        fetch('/api/health', { cache: 'no-store' }),
+        fetch('/api/tables', { cache: 'no-store' }),
+      ]);
+
+      if (!reservationsResponse.ok || !tablesResponse.ok) {
+        throw new Error("Не вдалося оновити актуальні статуси");
+      }
+
+      const [reservationsData, tablesData] = await Promise.all([
+        reservationsResponse.json(),
+        tablesResponse.json(),
+      ]);
+
+      setReservations(Array.isArray(reservationsData) ? reservationsData : []);
+      setTableStates(Array.isArray(tablesData) ? tablesData : []);
+      setSyncError("");
+    } catch {
+      setSyncError("Не вдалося оновити статуси в реальному часі");
+    }
+  }, []);
 
   const toggleType = (label: string) => {
     setSelectedTypes(prev => prev.includes(label) ? prev.filter(t => t !== label) : [...prev, label]);
   };
 
-  const getTodayString = () => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  };
+  const availableTimes = useMemo(() => getAvailableTimes(date), [date]);
+  const selectedTime = availableTimes.includes(time) ? time : availableTimes[0] ?? "";
+  const blockedRestaurantIds = useMemo(() => new Set(
+    reservations
+      .filter((reservation) => (
+        reservation.date === date &&
+        reservation.time === selectedTime &&
+        (reservation.status === 'pending' || reservation.status === 'confirmed')
+      ))
+      .map((reservation) => reservation.restaurantId)
+      .filter(Boolean)
+  ), [date, reservations, selectedTime]);
 
-  useEffect(() => { setDate(getTodayString()); }, []);
+  const tableAvailabilityByRestaurant = useMemo(() => {
+    const availability = new Map<string, boolean>();
+    tableStates.forEach((table) => {
+      availability.set(String(table.number), table.isAvailable);
+    });
+    return availability;
+  }, [tableStates]);
+
+  const isRestaurantAvailable = useCallback((restaurant: RestaurantItem) => {
+    const sensorAvailability = tableAvailabilityByRestaurant.get(restaurant.id);
+    const isAvailableBySensor = sensorAvailability ?? restaurant.isAvailable;
+    const hasActiveReservation = blockedRestaurantIds.has(restaurant.id);
+
+    return isAvailableBySensor && !hasActiveReservation;
+  }, [blockedRestaurantIds, tableAvailabilityByRestaurant]);
 
   useEffect(() => {
-    if (!date) return;
-    const today = getTodayString();
-    let validTimes = ALL_TIMES;
-    if (date === today) {
-      const now = new Date();
-      validTimes = ALL_TIMES.filter(t => {
-        const [h, m] = t.split(':').map(Number);
-        return h > now.getHours() || (h === now.getHours() && m > now.getMinutes());
-      });
-    }
-    setAvailableTimes(validTimes);
-    if (validTimes.length > 0 && !validTimes.includes(time)) setTime(validTimes[0]);
-  }, [date, time]);
+    loadRealtimeState();
+    const interval = window.setInterval(loadRealtimeState, 5000);
+    const handleFocus = () => loadRealtimeState();
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleFocus);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleFocus);
+    };
+  }, [loadRealtimeState]);
 
   const filteredTables = DUMMY_TABLES.filter(table => {
     const matchCity = table.city === city;
@@ -99,10 +175,38 @@ export default function HomePage() {
     return matchCity && matchType && matchSearch;
   });
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Бронювання успішне для ${clientName} у ${selectedTableForBooking.name}`);
-    setIsModalOpen(false);
+    if (!selectedTableForBooking) return;
+
+    const restaurantForBooking = selectedTableForBooking;
+    const response = await fetch('/api/health', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        restaurantId: restaurantForBooking.id,
+        restaurantName: restaurantForBooking.name,
+        clientName,
+        clientPhone,
+        persons,
+        date,
+        time: selectedTime,
+        duration,
+      }),
+    });
+
+    if (response.ok) {
+      alert(`Бронювання успішне для ${clientName} у ${restaurantForBooking.name}`);
+      setClientName("");
+      setClientPhone("");
+      setDuration("2");
+      setIsModalOpen(false);
+      await loadRealtimeState();
+      return;
+    }
+
+    const data = await response.json().catch(() => null);
+    alert(data?.error || 'Не вдалося створити бронювання. Спробуйте ще раз.');
   };
 
   return (
@@ -118,7 +222,7 @@ export default function HomePage() {
             </select>
             <input type="text" placeholder="Пошук..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="hidden md:block border rounded py-1.5 px-3 text-sm max-w-sm w-full" />
           </div>
-          <button className="bg-amber-600 text-white px-4 py-2 rounded text-sm font-bold ml-4">Увійти</button>
+          <Link href="/admin" className="bg-amber-600 text-white px-4 py-2 rounded text-sm font-bold ml-4">Адмін</Link>
         </div>
       </header>
 
@@ -138,13 +242,18 @@ export default function HomePage() {
           </div>
           <div className="bg-white p-2 rounded-lg flex-1">
             <label className="text-[10px] uppercase font-bold text-gray-400 block ml-1">Час</label>
-            <select value={time} onChange={(e) => setTime(e.target.value)} disabled={availableTimes.length === 0} className="w-full p-1 focus:outline-none disabled:text-gray-300">
+            <select value={selectedTime} onChange={(e) => setTime(e.target.value)} disabled={availableTimes.length === 0} className="w-full p-1 focus:outline-none disabled:text-gray-300">
               {availableTimes.length > 0 ? availableTimes.map(t => <option key={t} value={t}>{t}</option>) : <option>Немає часу</option>}
             </select>
           </div>
           <button className="bg-amber-600 text-white font-bold py-3 rounded-lg hover:bg-amber-700 transition-colors uppercase text-sm">Підібрати</button>
         </div>
       </div>
+      {syncError && (
+        <div className="bg-red-50 px-4 py-3 text-center text-sm font-semibold text-red-700">
+          {syncError}
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-4 py-8 flex flex-col md:flex-row gap-8">
         <aside className="w-full md:w-64 flex-shrink-0">
@@ -163,14 +272,52 @@ export default function HomePage() {
         </aside>
 
         <div className="flex-1">
+          <section className="mb-8">
+            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">Схема доступності</h1>
+                <p className="text-sm text-gray-500">{city} · {date} · {selectedTime || 'час не вибрано'}</p>
+              </div>
+              <div className="flex gap-3 text-xs font-semibold text-gray-500">
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />Вільно</span>
+                <span className="inline-flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-red-500" />Зайнято</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {filteredTables.map((table) => {
+                const isAvailable = isRestaurantAvailable(table);
+                return (
+                  <button
+                    key={`plan-${table.id}`}
+                    onClick={() => { setSelectedTableForBooking(table); setIsModalOpen(true); }}
+                    disabled={!isAvailable}
+                    className={`min-h-28 rounded-lg border p-4 text-left transition ${
+                      isAvailable
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:border-emerald-400 hover:bg-emerald-100'
+                        : 'border-red-200 bg-red-50 text-red-950 opacity-75'
+                    }`}
+                  >
+                    <span className="block text-xs font-bold uppercase tracking-wide">{table.type}</span>
+                    <span className="mt-1 block text-base font-bold leading-tight">{table.name}</span>
+                    <span className="mt-3 inline-flex rounded-full bg-white/80 px-2 py-1 text-xs font-bold">
+                      {isAvailable ? 'Доступно' : 'Недоступно'} · {table.capacity} ос.
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
           <h1 className="text-2xl font-bold mb-6">Каталог закладів</h1>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTables.map((table) => (
+            {filteredTables.map((table) => {
+              const isAvailable = isRestaurantAvailable(table);
+              return (
               <div key={table.id} className="bg-white border rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col group border-gray-100">
                 <Link href={`/booking/${table.id}`} className="flex-1">
                   <div className="h-48 overflow-hidden relative">
                     <img src={table.img} alt={table.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                    {!table.isAvailable && <div className="absolute inset-0 bg-black/60 flex items-center justify-center font-bold text-white uppercase tracking-widest">Зайнято</div>}
+                    {!isAvailable && <div className="absolute inset-0 bg-black/60 flex items-center justify-center font-bold text-white uppercase tracking-widest">Зайнято</div>}
                   </div>
                   <div className="p-4">
                     <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">{table.type}</span>
@@ -182,12 +329,12 @@ export default function HomePage() {
                   </div>
                 </Link>
                 <div className="p-4 pt-0">
-                  <button onClick={() => { setSelectedTableForBooking(table); setIsModalOpen(true); }} disabled={!table.isAvailable} className="w-full py-2.5 bg-amber-50 text-amber-800 rounded-lg font-bold hover:bg-amber-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400">
-                    Забронювати стіл
+                  <button onClick={() => { setSelectedTableForBooking(table); setIsModalOpen(true); }} disabled={!isAvailable} className="w-full py-2.5 bg-amber-50 text-amber-800 rounded-lg font-bold hover:bg-amber-100 transition-colors disabled:bg-gray-100 disabled:text-gray-400">
+                    {isAvailable ? 'Забронювати стіл' : 'Недоступно'}
                   </button>
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </div>
       </main>
@@ -206,7 +353,7 @@ export default function HomePage() {
             </div>
             <form onSubmit={handleBookingSubmit} className="p-6 space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Ваше ім'я</label>
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">Ваше ім&apos;я</label>
                 <input required type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full border rounded-lg p-2.5 focus:ring-2 ring-amber-500 focus:outline-none" />
               </div>
               <div className="space-y-1">
@@ -220,7 +367,7 @@ export default function HomePage() {
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-gray-400 uppercase ml-1">Час</label>
-                  <select value={time} onChange={(e) => setTime(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm">
+                  <select value={selectedTime} onChange={(e) => setTime(e.target.value)} className="w-full border rounded-lg p-2.5 text-sm">
                     {availableTimes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>

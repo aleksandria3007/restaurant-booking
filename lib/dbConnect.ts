@@ -6,11 +6,21 @@ if (!MONGODB_URI) {
   throw new Error('Будь ласка, визначте змінну оточення MONGODB_URI всередині .env.local');
 }
 
-let cached = (global as any).mongoose;
+type MongooseCache = {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+};
 
-if (!cached) {
-  cached = (global as any).mongoose = { conn: null, promise: null };
-}
+const globalWithMongoose = global as typeof globalThis & {
+  mongoose?: MongooseCache;
+};
+
+const cached: MongooseCache = globalWithMongoose.mongoose ?? {
+  conn: null,
+  promise: null,
+};
+
+globalWithMongoose.mongoose = cached;
 
 async function dbConnect() {
   if (cached.conn) {

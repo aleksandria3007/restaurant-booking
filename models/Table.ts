@@ -1,10 +1,9 @@
-import mongoose, { Schema, model, models } from 'mongoose';
+import { Schema, model, models } from 'mongoose';
 
 const TableSchema = new Schema({
   restaurantId: { 
-    type: Schema.Types.ObjectId, 
-    ref: 'Restaurant'
-    // required: true  <-- Видаляємо або коментуємо цей рядок
+    type: String,
+    index: true,
   },
   number: { 
     type: Number, 
@@ -19,6 +18,12 @@ const TableSchema = new Schema({
     type: Boolean, 
     default: true 
   }
+}, {
+  timestamps: true,
+  versionKey: false,
+  toJSON: {
+    virtuals: true,
+  },
 });
 
 const Table = models.Table || model('Table', TableSchema);
