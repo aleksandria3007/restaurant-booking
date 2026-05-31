@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
-import Table from '@/models/Table';
+import SensorOccupancy from '@/models/SensorOccupancy';
 import Reservation from '@/models/Reservation';
 
 const getTodayString = () => {
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     // 2. Зчитуємо дані від Wokwi
     const body = await request.json();
-    const { tableId, isOccupied } = body;
+    const { restaurantId, tableId, isOccupied, capacity } = body;
 
     if (!tableId || typeof isOccupied !== "boolean") {
       return NextResponse.json({
@@ -31,14 +31,25 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    const resolvedRestaurantId = String(restaurantId || tableId);
+    const resolvedTableId = Number(tableId);
+
+    if (!Number.isFinite(resolvedTableId)) {
+      return NextResponse.json({
+        success: false,
+        error: "tableId має бути числом",
+      }, { status: 400 });
+    }
+
     // 3. Зберігаємо в базу (оновлюємо або створюємо новий)
-    const updatedTable = await Table.findOneAndUpdate(
-      { number: tableId }, // Шукаємо стіл за номером
+    const updatedTable = await SensorOccupancy.findOneAndUpdate(
+      { restaurantId: resolvedRestaurantId, tableId: resolvedTableId },
       { 
         $set: { 
-          restaurantId: String(tableId),
-          number: tableId,
-          isAvailable: !isOccupied // Якщо зайнятий (true) -> доступність (false)
+          restaurantId: resolvedRestaurantId,
+          tableId: resolvedTableId,
+          isOccupied,
+          ...(capacity ? { capacity: Number(capacity) } : {}),
         } 
       },
       { 
@@ -50,7 +61,7 @@ export async function POST(request: Request) {
     if (!isOccupied) {
       await Reservation.updateMany(
         {
-          restaurantId: String(tableId),
+          restaurantId: resolvedRestaurantId,
           date: getTodayString(),
           status: { $in: ["pending", "confirmed"] },
         },
@@ -60,7 +71,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `Стіл №${tableId} збережено! Доступність: ${updatedTable.isAvailable}` 
+      message: `Стіл №${updatedTable.tableId} збережено! Зайнятий: ${updatedTable.isOccupied}` 
     }, { status: 200 });
 
   } catch (error: unknown) {

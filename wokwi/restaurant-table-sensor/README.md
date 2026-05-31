@@ -10,7 +10,9 @@ Payload:
 
 ```json
 {
+  "restaurantId": "1",
   "tableId": 1,
+  "capacity": 2,
   "isOccupied": true
 }
 ```
@@ -42,10 +44,22 @@ Green LED means the place is free. Red LED means it is occupied.
 
 ## Matching the web app
 
-`TABLE_ID = 1` matches restaurant/card id `1` in the app. Change `TABLE_ID` to simulate another place:
+Each table has its own ESP32, so change `RESTAURANT_ID`, `TABLE_ID`, and `TABLE_CAPACITY` per device.
+
+Examples already configured in the web app:
+
+| Restaurant | `RESTAURANT_ID` | `TABLE_ID` | `TABLE_CAPACITY` |
+| --- | --- | --- | --- |
+| Гасова лямпа, стіл 1 | `"1"` | `1` | `2` |
+| Гасова лямпа, стіл 2 | `"1"` | `2` | `2` |
+| Реберня під Арсеналом, стіл 1 | `"2"` | `1` | `4` |
+
+For example, to simulate Реберня table 1:
 
 ```cpp
-const int TABLE_ID = 2;
+const char* RESTAURANT_ID = "2";
+const int TABLE_ID = 1;
+const int TABLE_CAPACITY = 4;
 ```
 
 The web app polls `/api/tables`, so the catalog and availability grid update automatically after the sensor changes the MongoDB state.

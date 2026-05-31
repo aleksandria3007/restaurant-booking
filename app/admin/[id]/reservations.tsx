@@ -11,11 +11,23 @@ type Reservation = {
   clientName?: string;
   clientPhone?: string;
   persons?: string;
+  tableId?: number;
+  tableCapacity?: number;
   date?: string;
   time?: string;
   duration?: string;
   status: ReservationStatus;
   createdAt?: string;
+};
+
+type SensorTable = {
+  id: string;
+  restaurantId: string;
+  tableId: number;
+  isOccupied: boolean;
+  capacity?: number;
+  hasSensor?: boolean;
+  updatedAt?: string;
 };
 
 type Props = {
@@ -39,6 +51,7 @@ const STATUS_STYLES: Record<ReservationStatus, string> = {
 
 export default function AdminReservations({ restaurantId, restaurantName }: Props) {
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [sensorTables, setSensorTables] = useState<SensorTable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | ReservationStatus>('all');
 
@@ -46,9 +59,16 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
     if (showLoading) {
       setIsLoading(true);
     }
-    const response = await fetch(`/api/health?restaurantId=${restaurantId}`, { cache: 'no-store' });
-    const data = await response.json();
-    setReservations(Array.isArray(data) ? data : []);
+    const [reservationsResponse, tablesResponse] = await Promise.all([
+      fetch(`/api/health?restaurantId=${restaurantId}`, { cache: 'no-store' }),
+      fetch(`/api/tables?restaurantId=${restaurantId}`, { cache: 'no-store' }),
+    ]);
+    const [reservationsData, tablesData] = await Promise.all([
+      reservationsResponse.json(),
+      tablesResponse.json(),
+    ]);
+    setReservations(Array.isArray(reservationsData) ? reservationsData : []);
+    setSensorTables(Array.isArray(tablesData) ? tablesData : []);
     setIsLoading(false);
   }, [restaurantId]);
 
@@ -60,11 +80,18 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
         setIsLoading(true);
       }
 
-      const response = await fetch(`/api/health?restaurantId=${restaurantId}`, { cache: 'no-store' });
-      const data = await response.json();
+      const [reservationsResponse, tablesResponse] = await Promise.all([
+        fetch(`/api/health?restaurantId=${restaurantId}`, { cache: 'no-store' }),
+        fetch(`/api/tables?restaurantId=${restaurantId}`, { cache: 'no-store' }),
+      ]);
+      const [reservationsData, tablesData] = await Promise.all([
+        reservationsResponse.json(),
+        tablesResponse.json(),
+      ]);
 
       if (isActive) {
-        setReservations(Array.isArray(data) ? data : []);
+        setReservations(Array.isArray(reservationsData) ? reservationsData : []);
+        setSensorTables(Array.isArray(tablesData) ? tablesData : []);
         setIsLoading(false);
       }
     };
@@ -97,6 +124,21 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
     completed: reservations.filter((reservation) => reservation.status === 'completed').length,
   }), [reservations]);
 
+  const activeReservationsByTable = useMemo(() => {
+    const activeReservations = new Map<number, Reservation>();
+    reservations
+      .filter((reservation) => reservation.tableId && (reservation.status === 'pending' || reservation.status === 'confirmed'))
+      .forEach((reservation) => {
+        if (reservation.tableId) activeReservations.set(reservation.tableId, reservation);
+      });
+    return activeReservations;
+  }, [reservations]);
+
+  const unavailableTablesCount = useMemo(
+    () => sensorTables.filter((table) => table.isOccupied || activeReservationsByTable.has(table.tableId)).length,
+    [activeReservationsByTable, sensorTables]
+  );
+
   const updateStatus = async (id: string, status: ReservationStatus) => {
     const response = await fetch('/api/health', {
       method: 'PATCH',
@@ -127,7 +169,54 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
         <Stat label="Усього" value={stats.all} />
         <Stat label="Очікують" value={stats.pending} />
         <Stat label="Підтверджені" value={stats.confirmed} />
-        <Stat label="Скасовані" value={stats.cancelled} />
+        <Stat label="Зайняті столи" value={unavailableTablesCount} />
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="border-b p-4">
+          <h2 className="text-xl font-bold">Схема доступності столів</h2>
+          <p className="text-sm text-gray-500">{restaurantName}: дані зберігаються окремо від бронювань</p>
+        </div>
+
+        {isLoading ? (
+          <div className="p-8 text-center text-gray-500">Оновлення стану столів...</div>
+        ) : sensorTables.length === 0 ? (
+          <div className="p-8 text-center">
+            <h3 className="font-bold text-gray-900">Датчик ще не передавав дані</h3>
+            <p className="mt-1 text-sm text-gray-500">Коли стіл змінить стан, запис зʼявиться у цьому блоці.</p>
+          </div>
+        ) : (
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            {sensorTables.map((table) => {
+              const activeReservation = activeReservationsByTable.get(table.tableId);
+              const isUnavailable = table.isOccupied || Boolean(activeReservation);
+              return (
+                <div
+                  key={table.id}
+                  className={`rounded-lg border p-4 ${
+                    isUnavailable ? 'border-red-200 bg-red-50 text-red-950' : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                  }`}
+                >
+                  <div className="text-sm font-semibold opacity-75">Стіл №{table.tableId}</div>
+                  <div className="mt-1 text-xl font-bold">
+                    {activeReservation ? 'Заброньований' : table.isOccupied ? 'Зайнятий' : 'Вільний'}
+                  </div>
+                  <div className="mt-2 text-sm opacity-75">Місткість: {table.capacity || 4} ос.</div>
+                  {activeReservation && (
+                    <div className="mt-2 text-xs font-semibold opacity-75">
+                      {activeReservation.date} о {activeReservation.time}
+                    </div>
+                  )}
+                  {table.updatedAt && table.isOccupied && (
+                    <div className="mt-2 text-xs opacity-70">
+                      Оновлено: {new Date(table.updatedAt).toLocaleString('uk-UA')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white">
@@ -165,6 +254,7 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
                 <tr>
                   <th className="px-4 py-3">Гість</th>
                   <th className="px-4 py-3">Дата і час</th>
+                  <th className="px-4 py-3">Стіл</th>
                   <th className="px-4 py-3">Людей</th>
                   <th className="px-4 py-3">Статус</th>
                   <th className="px-4 py-3 text-right">Дії</th>
@@ -180,6 +270,10 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
                     <td className="px-4 py-4">
                       <div className="font-semibold">{reservation.date || '-'}</div>
                       <div className="text-gray-500">{reservation.time || '-'} · {reservation.duration || '2'} год</div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="font-semibold">№{reservation.tableId || '-'}</div>
+                      <div className="text-gray-500">до {reservation.tableCapacity || '-'} ос.</div>
                     </td>
                     <td className="px-4 py-4">{reservation.persons || '-'}</td>
                     <td className="px-4 py-4">

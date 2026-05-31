@@ -1,9 +1,51 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import Reservation from '@/models/Reservation';
-import Table from '@/models/Table';
+import SensorOccupancy from '@/models/SensorOccupancy';
+import { getRestaurantTables, isTableCapacityAllowed } from '@/lib/tables';
 
 type ReservationStatus = "pending" | "confirmed" | "cancelled" | "completed";
+
+const ACTIVE_STATUSES = ["pending", "confirmed"];
+
+async function findAvailableTable({
+  restaurantId,
+  persons,
+  date,
+  time,
+  excludeReservationId,
+}: {
+  restaurantId: string;
+  persons: number;
+  date: string;
+  time: string;
+  excludeReservationId?: string;
+}) {
+  const restaurantTables = getRestaurantTables(restaurantId)
+    .filter((table) => isTableCapacityAllowed(persons, table.capacity))
+    .sort((a, b) => a.capacity - b.capacity || a.tableId - b.tableId);
+
+  if (!restaurantTables.length) return null;
+
+  const activeReservations = await Reservation.find({
+    restaurantId,
+    date,
+    time,
+    status: { $in: ACTIVE_STATUSES },
+    ...(excludeReservationId ? { _id: { $ne: excludeReservationId } } : {}),
+  });
+  const reservedTableIds = new Set(activeReservations.map((reservation) => reservation.tableId));
+
+  const occupiedSensorTables = await SensorOccupancy.find({
+    restaurantId,
+    isOccupied: true,
+  });
+  const occupiedTableIds = new Set(occupiedSensorTables.map((table) => table.tableId));
+
+  return restaurantTables.find(
+    (table) => !reservedTableIds.has(table.tableId) && !occupiedTableIds.has(table.tableId)
+  ) || null;
+}
 
 export async function GET(req: Request) {
   try {
@@ -11,7 +53,11 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const restaurantId = searchParams.get("restaurantId");
-    const filter = restaurantId ? { restaurantId } : {};
+    const userId = searchParams.get("userId");
+    const filter = {
+      ...(restaurantId ? { restaurantId } : {}),
+      ...(userId ? { userId } : {}),
+    };
     const reservations = await Reservation.find(filter).sort({ date: 1, time: 1, createdAt: -1 });
 
     return NextResponse.json(reservations);
@@ -35,34 +81,31 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const tableNumber = Number(body.restaurantId);
-    const physicalTable = Number.isFinite(tableNumber)
-      ? await Table.findOne({ number: tableNumber })
-      : null;
-
-    if (physicalTable && !physicalTable.isAvailable) {
+    const personsCount = Number(body.persons);
+    if (!Number.isFinite(personsCount)) {
       return NextResponse.json({
         ok: false,
-        error: "Вибачте, цей столик щойно був зайнятий. Оберіть інший заклад або час.",
-      }, { status: 409 });
+        error: "Вкажіть коректну кількість гостей",
+      }, { status: 400 });
     }
 
-    const existingReservation = await Reservation.findOne({
+    const availableTable = await findAvailableTable({
       restaurantId: body.restaurantId,
+      persons: personsCount,
       date: body.date,
       time: body.time,
-      status: { $in: ["pending", "confirmed"] },
     });
-
-    if (existingReservation) {
+    if (!availableTable) {
       return NextResponse.json({
         ok: false,
-        error: "На цей час уже є активне бронювання. Оберіть інший слот.",
+        error: "Недоступно: усі столи потрібної місткості зайняті або заброньовані.",
       }, { status: 409 });
     }
 
     const newReservation = await Reservation.create({
       ...body,
+      tableId: availableTable.tableId,
+      tableCapacity: availableTable.capacity,
       status: "pending",
     });
 
@@ -76,22 +119,63 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     await dbConnect();
-    const { id, status } = await req.json();
+    const body = await req.json();
+    const { id, status, userId, persons, date, time, duration, clientName, clientPhone } = body;
     const allowedStatuses: ReservationStatus[] = ["pending", "confirmed", "cancelled", "completed"];
 
-    if (!allowedStatuses.includes(status)) {
+    if (status && !allowedStatuses.includes(status)) {
       return NextResponse.json({ ok: false, error: "Невідомий статус" }, { status: 400 });
+    }
+
+    const currentReservation = await Reservation.findById(id);
+
+    if (!currentReservation) {
+      return NextResponse.json({ ok: false, error: "Бронювання не знайдено" }, { status: 404 });
+    }
+
+    if (userId && currentReservation.userId && currentReservation.userId !== userId) {
+      return NextResponse.json({ ok: false, error: "Це бронювання належить іншому користувачу" }, { status: 403 });
+    }
+
+    const nextPersons = persons ?? currentReservation.persons;
+    const nextDate = date ?? currentReservation.date;
+    const nextTime = time ?? currentReservation.time;
+    const update: Record<string, unknown> = {
+      ...(status ? { status } : {}),
+      ...(duration ? { duration } : {}),
+      ...(clientName ? { clientName } : {}),
+      ...(clientPhone ? { clientPhone } : {}),
+      ...(persons ? { persons } : {}),
+      ...(date ? { date } : {}),
+      ...(time ? { time } : {}),
+    };
+
+    const needsNewTable = Boolean(persons || date || time);
+    if (needsNewTable && status !== 'cancelled') {
+      const availableTable = await findAvailableTable({
+        restaurantId: currentReservation.restaurantId,
+        persons: Number(nextPersons),
+        date: nextDate,
+        time: nextTime,
+        excludeReservationId: id,
+      });
+
+      if (!availableTable) {
+        return NextResponse.json({
+          ok: false,
+          error: "Недоступно: немає вільного столу для оновлених параметрів.",
+        }, { status: 409 });
+      }
+
+      update.tableId = availableTable.tableId;
+      update.tableCapacity = availableTable.capacity;
     }
 
     const reservation = await Reservation.findByIdAndUpdate(
       id,
-      { $set: { status } },
+      { $set: update },
       { new: true }
     );
-
-    if (!reservation) {
-      return NextResponse.json({ ok: false, error: "Бронювання не знайдено" }, { status: 404 });
-    }
 
     return NextResponse.json(reservation);
   } catch (error: unknown) {

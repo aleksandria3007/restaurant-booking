@@ -4,16 +4,8 @@
 
 const char* WIFI_SSID = "Wokwi-GUEST";
 const char* WIFI_PASSWORD = "";
-
-// Replace this URL with your deployed app URL or a public tunnel URL.
-// Wokwi cannot send requests directly to http://127.0.0.1:3000.
 const char* SENSOR_API_URL = "https://restaurant-booking-wine.vercel.app/api/sensor";
 
-// One ESP32 is mounted under one physical table.
-// Example configs:
-// Gasova lyampa, table 1: RESTAURANT_ID = "1", TABLE_ID = 1
-// Gasova lyampa, table 2: RESTAURANT_ID = "1", TABLE_ID = 2
-// Rebernya, table 1:      RESTAURANT_ID = "2", TABLE_ID = 1
 const char* RESTAURANT_ID = "1";
 const int TABLE_ID = 1;
 const int TABLE_CAPACITY = 2;
@@ -41,10 +33,7 @@ float readDistanceCm() {
   digitalWrite(TRIG_PIN, LOW);
 
   long duration = pulseIn(ECHO_PIN, HIGH, 30000);
-  if (duration == 0) {
-    return 999.0;
-  }
-
+  if (duration == 0) return 999.0;
   return duration * 0.0343 / 2.0;
 }
 
@@ -54,21 +43,9 @@ void updateLeds(bool isOccupied) {
 }
 
 void connectWifi() {
-  if (WiFi.status() == WL_CONNECTED) {
-    return;
-  }
-
-  Serial.print("Connecting to Wi-Fi");
+  if (WiFi.status() == WL_CONNECTED) return;
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-
-  Serial.println();
-  Serial.print("Connected. IP: ");
-  Serial.println(WiFi.localIP());
+  while (WiFi.status() != WL_CONNECTED) delay(500);
 }
 
 bool sendTableState(bool isOccupied) {
@@ -91,16 +68,10 @@ bool sendTableState(bool isOccupied) {
   payload += isOccupied ? "true" : "false";
   payload += "}";
 
-  Serial.print("POST ");
-  Serial.println(payload);
-
   int responseCode = http.POST(payload);
-  String response = http.getString();
-
-  Serial.print("HTTP ");
+  Serial.println(payload);
   Serial.println(responseCode);
-  Serial.println(response);
-
+  Serial.println(http.getString());
   http.end();
 
   return responseCode >= 200 && responseCode < 300;
@@ -108,43 +79,29 @@ bool sendTableState(bool isOccupied) {
 
 void setup() {
   Serial.begin(115200);
-
   pinMode(TRIG_PIN, OUTPUT);
   pinMode(ECHO_PIN, INPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
-
   updateLeds(false);
   connectWifi();
-
   candidateChangedAt = millis();
-  Serial.println("Restaurant table sensor started.");
 }
 
 void loop() {
   unsigned long now = millis();
-  if (now - lastReadAt < READ_INTERVAL_MS) {
-    return;
-  }
+  if (now - lastReadAt < READ_INTERVAL_MS) return;
 
   lastReadAt = now;
   float distance = readDistanceCm();
   bool measuredOccupied = distance > 0 && distance < OCCUPIED_DISTANCE_CM;
-
-  Serial.print("Distance: ");
-  Serial.print(distance);
-  Serial.print(" cm, measured: ");
-  Serial.println(measuredOccupied ? "occupied" : "free");
 
   if (measuredOccupied != candidateOccupied) {
     candidateOccupied = measuredOccupied;
     candidateChangedAt = now;
   }
 
-  bool stableLongEnough = now - candidateChangedAt >= STABLE_STATE_MS;
-  bool stateChanged = candidateOccupied != currentOccupied;
-
-  if (stableLongEnough && (stateChanged || !hasReportedInitialState)) {
+  if (now - candidateChangedAt >= STABLE_STATE_MS && (candidateOccupied != currentOccupied || !hasReportedInitialState)) {
     if (sendTableState(candidateOccupied)) {
       currentOccupied = candidateOccupied;
       hasReportedInitialState = true;

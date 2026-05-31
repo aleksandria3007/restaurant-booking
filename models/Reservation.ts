@@ -11,6 +11,18 @@ const ReservationSchema = new Schema(
       type: String,
       required: true,
     },
+    userId: {
+      type: String,
+      index: true,
+    },
+    tableId: {
+      type: Number,
+      required: true,
+    },
+    tableCapacity: {
+      type: Number,
+      required: true,
+    },
     clientName: {
       type: String,
       required: true,
