@@ -24,7 +24,10 @@ const int GREEN_LED_PIN = 26;
 const int RED_LED_PIN = 27;
 
 const float OCCUPIED_DISTANCE_CM = 60.0;
-const unsigned long STABLE_STATE_MS = 5000;
+// 15 сек стабільного руху → надсилаємо "зайнятий" (захист від людей, що проходять повз)
+const unsigned long OCCUPIED_CONFIRM_MS = 15000;
+// 5 сек без руху → надсилаємо "вільний" (сервер додатково тримає 15 хв grace-period)
+const unsigned long FREE_CONFIRM_MS = 5000;
 const unsigned long READ_INTERVAL_MS = 400;
 
 bool currentOccupied = false;
@@ -141,7 +144,8 @@ void loop() {
     candidateChangedAt = now;
   }
 
-  bool stableLongEnough = now - candidateChangedAt >= STABLE_STATE_MS;
+  unsigned long confirmMs = candidateOccupied ? OCCUPIED_CONFIRM_MS : FREE_CONFIRM_MS;
+  bool stableLongEnough = now - candidateChangedAt >= confirmMs;
   bool stateChanged = candidateOccupied != currentOccupied;
 
   if (stableLongEnough && (stateChanged || !hasReportedInitialState)) {

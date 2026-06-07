@@ -3,6 +3,9 @@ import dbConnect from '@/lib/dbConnect';
 import SensorOccupancy from '@/models/SensorOccupancy';
 import Reservation from '@/models/Reservation';
 
+// Скільки хвилин тримати стіл "зайнятим" після того, як датчик надіслав "вільний"
+const GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 хвилин
+
 const getTodayString = () => {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -11,16 +14,13 @@ const getTodayString = () => {
     month: '2-digit',
     day: '2-digit',
   });
-
   return formatter.format(now);
 };
 
 export async function POST(request: Request) {
   try {
-    // 1. Підключаємося до MongoDB Atlas
     await dbConnect();
 
-    // 2. Зчитуємо дані від Wokwi
     const body = await request.json();
     const { restaurantId, tableId, isOccupied, capacity } = body;
 
@@ -41,38 +41,65 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // 3. Зберігаємо в базу (оновлюємо або створюємо новий)
-    const updatedTable = await SensorOccupancy.findOneAndUpdate(
-      { restaurantId: resolvedRestaurantId, tableId: resolvedTableId },
-      { 
-        $set: { 
-          restaurantId: resolvedRestaurantId,
-          tableId: resolvedTableId,
-          isOccupied,
-          ...(capacity ? { capacity: Number(capacity) } : {}),
-        } 
-      },
-      { 
-        new: true,     // Повернути оновлений документ
-        upsert: true   // СТВОРИТИ запис, якщо столика №1 ще немає в базі!
-      }
-    );
-
-    if (!isOccupied) {
-      await Reservation.updateMany(
+    if (isOccupied) {
+      // Хтось сів — негайно позначаємо зайнятим, скасовуємо будь-який grace-period
+      const updatedTable = await SensorOccupancy.findOneAndUpdate(
+        { restaurantId: resolvedRestaurantId, tableId: resolvedTableId },
         {
-          restaurantId: resolvedRestaurantId,
-          date: getTodayString(),
-          status: { $in: ["pending", "confirmed"] },
+          $set: {
+            restaurantId: resolvedRestaurantId,
+            tableId: resolvedTableId,
+            isOccupied: true,
+            freeAt: null,
+            ...(capacity ? { capacity: Number(capacity) } : {}),
+          }
         },
-        { $set: { status: "completed" } }
+        { new: true, upsert: true }
       );
-    }
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `Стіл №${updatedTable.tableId} збережено! Зайнятий: ${updatedTable.isOccupied}` 
-    }, { status: 200 });
+      return NextResponse.json({
+        success: true,
+        message: `Стіл №${updatedTable.tableId} зайнятий`,
+      }, { status: 200 });
+
+    } else {
+      // Датчик не фіксує рух — запускаємо grace-period 15 хв.
+      // Стіл лишається "зайнятим" ще 15 хв на випадок, якщо людина просто відійшла.
+      const freeAt = new Date(Date.now() + GRACE_PERIOD_MS);
+
+      const existing = await SensorOccupancy.findOne({
+        restaurantId: resolvedRestaurantId,
+        tableId: resolvedTableId,
+      });
+
+      if (!existing) {
+        // Стіл і так вважався вільним — нічого не робимо
+        return NextResponse.json({
+          success: true,
+          message: `Стіл №${resolvedTableId} і так вільний`,
+        }, { status: 200 });
+      }
+
+      if (existing.freeAt) {
+        // Grace-period вже запущений раніше — не оновлюємо, щоб не продовжувати час
+        return NextResponse.json({
+          success: true,
+          message: `Стіл №${resolvedTableId}: grace-period вже активний до ${existing.freeAt.toISOString()}`,
+        }, { status: 200 });
+      }
+
+      // Запускаємо новий grace-period
+      await SensorOccupancy.findOneAndUpdate(
+        { restaurantId: resolvedRestaurantId, tableId: resolvedTableId },
+        { $set: { freeAt } }
+        // isOccupied лишається true — стіл поки що "зайнятий"
+      );
+
+      return NextResponse.json({
+        success: true,
+        message: `Стіл №${resolvedTableId}: розпочато grace-period 15 хв. Вільним стане о ${freeAt.toLocaleTimeString('uk-UA')}`,
+      }, { status: 200 });
+    }
 
   } catch (error: unknown) {
     console.error("Помилка збереження в MongoDB:", error);

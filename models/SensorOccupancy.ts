@@ -20,6 +20,13 @@ const SensorOccupancySchema = new Schema(
       type: Number,
       default: 4,
     },
+    // Коли датчик надіслав "вільний" — зберігаємо час закінчення grace-period.
+    // Поки freeAt > зараз, стіл лишається зайнятим (людина могла відійти в туалет).
+    // null = нема активного grace-period.
+    freeAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

@@ -28,6 +28,7 @@ type SensorTable = {
   capacity?: number;
   hasSensor?: boolean;
   updatedAt?: string;
+  freeAt?: string | null;
 };
 
 type Props = {
@@ -189,25 +190,41 @@ export default function AdminReservations({ restaurantId, restaurantName }: Prop
           <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
             {sensorTables.map((table) => {
               const activeReservation = activeReservationsByTable.get(table.tableId);
+              const inGracePeriod = Boolean(table.freeAt);
               const isUnavailable = table.isOccupied || Boolean(activeReservation);
               return (
                 <div
                   key={table.id}
                   className={`rounded-lg border p-4 ${
-                    isUnavailable ? 'border-red-200 bg-red-50 text-red-950' : 'border-emerald-200 bg-emerald-50 text-emerald-950'
+                    isUnavailable
+                      ? inGracePeriod
+                        ? 'border-orange-200 bg-orange-50 text-orange-950'
+                        : 'border-red-200 bg-red-50 text-red-950'
+                      : 'border-emerald-200 bg-emerald-50 text-emerald-950'
                   }`}
                 >
                   <div className="text-sm font-semibold opacity-75">Стіл №{table.tableId}</div>
                   <div className="mt-1 text-xl font-bold">
-                    {activeReservation ? 'Заброньований' : table.isOccupied ? 'Зайнятий' : 'Вільний'}
+                    {activeReservation
+                      ? 'Заброньований'
+                      : inGracePeriod
+                        ? 'Можливо вільний'
+                        : table.isOccupied
+                          ? 'Зайнятий'
+                          : 'Вільний'}
                   </div>
                   <div className="mt-2 text-sm opacity-75">Місткість: {table.capacity || 4} ос.</div>
+                  {inGracePeriod && table.freeAt && (
+                    <div className="mt-2 text-xs font-semibold opacity-80">
+                      Звільниться о {new Date(table.freeAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                   {activeReservation && (
                     <div className="mt-2 text-xs font-semibold opacity-75">
                       {activeReservation.date} о {activeReservation.time}
                     </div>
                   )}
-                  {table.updatedAt && table.isOccupied && (
+                  {table.updatedAt && table.isOccupied && !inGracePeriod && (
                     <div className="mt-2 text-xs opacity-70">
                       Оновлено: {new Date(table.updatedAt).toLocaleString('uk-UA')}
                     </div>
